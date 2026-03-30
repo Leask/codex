@@ -43,11 +43,15 @@ const SET_RLIMIT_CORE_FAILED_EXIT_CODE: i32 = 7;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn pre_main_hardening_linux() {
     // Disable ptrace attach / mark process non-dumpable.
-    let ret_code = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) };
-    if ret_code != 0 {
+    let (ret_code, errno) = unsafe {
+        *errno_location() = 0;
+        let ret_code = libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
+        (ret_code, *errno_location())
+    };
+    if !pr_set_dumpable_succeeded(ret_code, errno) {
         eprintln!(
             "ERROR: prctl(PR_SET_DUMPABLE, 0) failed: {}",
-            std::io::Error::last_os_error()
+            pr_set_dumpable_error_message(ret_code, errno)
         );
         std::process::exit(PRCTL_FAILED_EXIT_CODE);
     }
@@ -64,6 +68,33 @@ pub(crate) fn pre_main_hardening_linux() {
             std::env::remove_var(key);
         }
     }
+}
+
+#[cfg(target_os = "android")]
+fn errno_location() -> *mut libc::c_int {
+    unsafe { libc::__errno() }
+}
+
+#[cfg(target_os = "linux")]
+fn errno_location() -> *mut libc::c_int {
+    unsafe { libc::__errno_location() }
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn pr_set_dumpable_succeeded(ret_code: libc::c_int, errno: libc::c_int) -> bool {
+    // proot intercepts PR_SET_DUMPABLE so traced processes remain dumpable.
+    // In that environment, the call returns PR_SET_DUMPABLE itself and leaves
+    // errno untouched, so treat that response as success.
+    ret_code == 0 || (ret_code == libc::PR_SET_DUMPABLE && errno == 0)
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn pr_set_dumpable_error_message(ret_code: libc::c_int, errno: libc::c_int) -> String {
+    if errno == 0 {
+        return format!("unexpected return value {ret_code}");
+    }
+
+    std::io::Error::from_raw_os_error(errno).to_string()
 }
 
 #[cfg(any(target_os = "freebsd", target_os = "openbsd"))]
@@ -186,5 +217,26 @@ mod tests {
         let keys = env_keys_with_prefix(vars, b"LD_");
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0].as_os_str(), ld_test_var);
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[test]
+    fn pr_set_dumpable_succeeded_allows_proot_response() {
+        assert!(pr_set_dumpable_succeeded(libc::PR_SET_DUMPABLE, 0));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[test]
+    fn pr_set_dumpable_succeeded_rejects_unexpected_nonzero_return() {
+        assert!(!pr_set_dumpable_succeeded(123, 0));
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[test]
+    fn pr_set_dumpable_error_message_reports_return_code_when_errno_missing() {
+        assert_eq!(
+            pr_set_dumpable_error_message(123, 0),
+            "unexpected return value 123"
+        );
     }
 }
