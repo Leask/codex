@@ -99,7 +99,7 @@ pub(crate) struct WebsocketAuthError {
     message: &'static str,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct JwtClaims {
     exp: i64,
     nbf: Option<i64>,
@@ -107,7 +107,7 @@ struct JwtClaims {
     aud: Option<JwtAudienceClaim>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(untagged)]
 enum JwtAudienceClaim {
     Single(String),

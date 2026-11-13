@@ -228,7 +228,7 @@ indexmap = "2.12.0"
 insta = "1.46.3"
 inventory = "0.3.19"
 itertools = "0.14.0"
-jsonwebtoken = "9.3.1"
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 keyring = { version = "3.6", default-features = false }
 landlock = "0.4.4"
 lazy_static = "1"
@@ -338,7 +338,17 @@ walkdir = "2.5.0"
 webbrowser = "1.0"
 which = "8"
 wildmatch = "2.6.1"
-zip = "2.4.2"
+# Keep the existing compression backends while updating the archive parser.
+zip = { version = "9.1.2", default-features = false, features = [
+    "aes-crypto",
+    "bzip2-rs",
+    "deflate",
+    "deflate64",
+    "lzma",
+    "time",
+    "xz",
+    "zstd",
+] }
 zstd = "0.13"
 
 wiremock = "0.6"
