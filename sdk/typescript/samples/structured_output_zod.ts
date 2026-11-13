@@ -2,7 +2,7 @@
 
 import { Codex } from "@openai/codex-sdk";
 import { codexPathOverride } from "./helpers.ts";
-import z from "zod";
+import z from "zod/v3";
 import zodToJsonSchema from "zod-to-json-schema";
 
 const codex = new Codex({ codexPathOverride: codexPathOverride() });
